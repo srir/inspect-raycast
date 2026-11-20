@@ -1,0 +1,79 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "inspect",
+  "title": "Inspect",
+  "description": "Browse, start, and follow up on Inspect coding agent sessions.",
+  "icon": "inspect.png",
+  "author": "srir",
+  "categories": [
+    "Developer Tools",
+    "Productivity"
+  ],
+  "license": "MIT",
+  "preferences": [
+    {
+      "name": "apiKey",
+      "title": "API Key",
+      "description": "Personal API key (riu_\u2026) from Inspect \u2192 Settings \u2192 API keys",
+      "type": "password",
+      "required": true
+    },
+    {
+      "name": "baseUrl",
+      "title": "Inspect URL",
+      "description": "Your Inspect workspace URL (e.g. https://app.inspect.com, or your company's own Inspect address)",
+      "type": "textfield",
+      "required": false,
+      "default": "https://app.inspect.com"
+    },
+    {
+      "name": "defaultRepository",
+      "title": "Default Repository",
+      "description": "Repository ID preselected when starting a session (blank = first suggested)",
+      "type": "textfield",
+      "required": false
+    }
+  ],
+  "commands": [
+    {
+      "name": "sessions",
+      "title": "Search Sessions",
+      "subtitle": "Inspect",
+      "description": "List your Inspect sessions with a status preview, transcript, and actions.",
+      "mode": "view"
+    },
+    {
+      "name": "new-session",
+      "title": "New Session",
+      "subtitle": "Inspect",
+      "description": "Start a new Inspect session.",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "prompt",
+          "placeholder": "What should Inspect do?",
+          "type": "text",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^2.13.1",
+    "@raycast/utils": "^2.3.3"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.6.0"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint"
+  }
+}
