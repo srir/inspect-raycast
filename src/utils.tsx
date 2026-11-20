@@ -104,26 +104,46 @@ function quote(s: string) {
     .join("\n");
 }
 
+const HUMAN_SOURCES: Record<string, string> = {
+  chrome_extension: "Chrome",
+  slack: "Slack",
+  slack_reaction: "Slack",
+  github: "GitHub",
+  linear: "Linear",
+  email: "email",
+  review_chat: "review",
+};
+
+/** Who wrote a user-role message: the person, an automation, or another agent. */
+function authorLabel(s: Session, m: Message): string {
+  switch (m.source) {
+    case "agent":
+      return "🔀 Another agent";
+    case "automation":
+      return "⚙️ Automation";
+    case "background_task":
+      return "⚙️ Background task";
+  }
+  const person = s.viewer_is_owner === false ? (s.user?.name ?? "User") : "You";
+  const via = m.source ? HUMAN_SOURCES[m.source] : undefined;
+  return `🧑 ${person}${via ? ` (via ${via})` : ""}`;
+}
+
 /**
- * Render a transcript as markdown: user prompts quoted, assistant text inline, tool calls summarized.
- * Messages are grouped into exchanges (a prompt plus Inspect's reply). With `newestFirst`, the most
- * recent exchange comes first, since Raycast can't open a detail view scrolled to the bottom.
+ * Render a transcript as markdown: prompts quoted, assistant text inline, tool calls summarized.
+ * With `newestFirst` the latest message comes first, since Raycast can't open a detail view
+ * scrolled to the bottom. A rule separates each prompt from the conversation before it.
  */
 export function transcriptMarkdown(s: Session, messages: Message[], opts: { newestFirst?: boolean } = {}): string {
   const header: string[] = [`# ${sessionTitle(s)}`];
   if (s.description) header.push(`_${s.description}_`);
 
-  const turns: string[][] = [];
-  const current = () => {
-    if (!turns.length) turns.push([]);
-    return turns[turns.length - 1];
-  };
+  const blocks: { prompt: boolean; md: string }[] = [];
   for (const m of messages) {
     if (m.role === "user") {
       const t = textOf(m);
       if (!t || m.synthetic) continue;
-      const who = m.source && m.source !== "web" ? `You (${m.source})` : "You";
-      turns.push([`**🧑 ${who}** · ${relativeTime(m.created_at)}\n\n${quote(t)}`]);
+      blocks.push({ prompt: true, md: `**${authorLabel(s, m)}** · ${relativeTime(m.created_at)}\n\n${quote(t)}` });
       continue;
     }
     const chunks: string[] = [];
@@ -143,25 +163,38 @@ export function transcriptMarkdown(s: Session, messages: Message[], opts: { newe
       }
     }
     flush();
-    if (!m.completed_at && isActive(s)) chunks.push("_…working_");
-    if (chunks.length) current().push(`**🤖 Inspect**\n\n${chunks.join("\n\n")}`);
+    const working = !m.completed_at && isActive(s);
+    if (working) chunks.push("_…working_");
+    if (chunks.length) {
+      const when = working ? "now" : relativeTime(m.completed_at ?? m.created_at);
+      blocks.push({ prompt: false, md: `**🤖 Inspect** · ${when}\n\n${chunks.join("\n\n")}` });
+    }
   }
 
-  const ordered = opts.newestFirst ? [...turns].reverse() : turns;
-  const body = ordered.map((t) => t.join("\n\n")).join("\n\n---\n\n");
-  if (opts.newestFirst && turns.length > 1) header.push("_Newest first · ⌘T to flip_");
-  const md = [...header, body || "_No messages yet._"].join("\n\n");
+  const newestFirst = !!opts.newestFirst;
+  const ordered = newestFirst ? [...blocks].reverse() : blocks;
+  const parts: string[] = [];
+  ordered.forEach((b, i) => {
+    if (i > 0) {
+      // Chronological: rule before each prompt. Reversed: rule after each prompt.
+      const boundary = newestFirst ? ordered[i - 1].prompt : b.prompt;
+      if (boundary) parts.push("---");
+    }
+    parts.push(b.md);
+  });
+  if (newestFirst && blocks.length > 1) header.push("_Newest first · ⌘T to flip_");
+  const md = [...header, parts.join("\n\n") || "_No messages yet._"].join("\n\n");
 
   // Keep the most recent part of very long transcripts so Raycast stays snappy.
   const MAX = 40_000;
   if (md.length <= MAX) return md;
   const note = "_…transcript truncated, open in Inspect for the full history_";
-  return opts.newestFirst ? `${md.slice(0, MAX)}\n\n${note}` : `${note}\n\n${md.slice(-MAX)}`;
+  return newestFirst ? `${md.slice(0, MAX)}\n\n${note}` : `${note}\n\n${md.slice(-MAX)}`;
 }
 
 export function SessionMetadata({ session: s, inDetail }: { session: Session; inDetail?: boolean }) {
   const st = statusInfo(s);
-  const diff = s.repositories?.find((r) => r.diff)?.diff;
+  const diff = s.repositories?.map((r) => r.diff).find((d) => d && typeof d.additions === "number");
   const cost = formatCost(s.total_cost);
   // Detail.Metadata and List.Item.Detail.Metadata share the same shape.
   const M = (inDetail ? Detail.Metadata : List.Item.Detail.Metadata) as typeof List.Item.Detail.Metadata;
