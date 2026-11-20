@@ -104,16 +104,26 @@ function quote(s: string) {
     .join("\n");
 }
 
-/** Render a transcript as markdown: user prompts quoted, assistant text inline, tool calls summarized. */
-export function transcriptMarkdown(s: Session, messages: Message[]): string {
-  const out: string[] = [`# ${sessionTitle(s)}`];
-  if (s.description) out.push(`_${s.description}_`);
+/**
+ * Render a transcript as markdown: user prompts quoted, assistant text inline, tool calls summarized.
+ * Messages are grouped into exchanges (a prompt plus Inspect's reply). With `newestFirst`, the most
+ * recent exchange comes first, since Raycast can't open a detail view scrolled to the bottom.
+ */
+export function transcriptMarkdown(s: Session, messages: Message[], opts: { newestFirst?: boolean } = {}): string {
+  const header: string[] = [`# ${sessionTitle(s)}`];
+  if (s.description) header.push(`_${s.description}_`);
+
+  const turns: string[][] = [];
+  const current = () => {
+    if (!turns.length) turns.push([]);
+    return turns[turns.length - 1];
+  };
   for (const m of messages) {
     if (m.role === "user") {
       const t = textOf(m);
       if (!t || m.synthetic) continue;
       const who = m.source && m.source !== "web" ? `You (${m.source})` : "You";
-      out.push(`---\n\n**🧑 ${who}** · ${relativeTime(m.created_at)}\n\n${quote(t)}`);
+      turns.push([`**🧑 ${who}** · ${relativeTime(m.created_at)}\n\n${quote(t)}`]);
       continue;
     }
     const chunks: string[] = [];
@@ -134,13 +144,19 @@ export function transcriptMarkdown(s: Session, messages: Message[]): string {
     }
     flush();
     if (!m.completed_at && isActive(s)) chunks.push("_…working_");
-    if (chunks.length) out.push(`**🤖 Inspect**\n\n${chunks.join("\n\n")}`);
+    if (chunks.length) current().push(`**🤖 Inspect**\n\n${chunks.join("\n\n")}`);
   }
-  if (messages.length === 0) out.push("_No messages yet._");
-  const md = out.join("\n\n");
-  // Keep the tail of very long transcripts so Raycast stays snappy.
+
+  const ordered = opts.newestFirst ? [...turns].reverse() : turns;
+  const body = ordered.map((t) => t.join("\n\n")).join("\n\n---\n\n");
+  if (opts.newestFirst && turns.length > 1) header.push("_Newest first · ⌘T to flip_");
+  const md = [...header, body || "_No messages yet._"].join("\n\n");
+
+  // Keep the most recent part of very long transcripts so Raycast stays snappy.
   const MAX = 40_000;
-  return md.length > MAX ? `_…transcript truncated, open in Inspect for the full history_\n\n${md.slice(-MAX)}` : md;
+  if (md.length <= MAX) return md;
+  const note = "_…transcript truncated, open in Inspect for the full history_";
+  return opts.newestFirst ? `${md.slice(0, MAX)}\n\n${note}` : `${note}\n\n${md.slice(-MAX)}`;
 }
 
 export function SessionMetadata({ session: s, inDetail }: { session: Session; inDetail?: boolean }) {

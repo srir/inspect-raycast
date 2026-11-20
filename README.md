@@ -11,7 +11,7 @@ A [Raycast](https://raycast.com) extension for [Inspect](https://docs.inspect.co
 Lists your sessions, with running ones pinned in an **Active** section that refreshes automatically.
 
 - **Preview pane** (⌘D): status, repo, branch, diff size, pull requests, preview deploy, model, cost, plus the original prompt and the latest reply.
-- **↵** opens the full transcript, which updates live while the agent works.
+- **↵** opens the full transcript, which updates live while the agent works. The newest exchange is shown first (⌘T flips the order).
 - **⌘F** replies inline: the search bar becomes a message box and the side pane shows the conversation. ↵ sends now, ⌘↵ queues until the current turn finishes, ⌘E opens a full editor.
 - Filter by title, repo, branch, PR number, tag, or ID. The dropdown switches between your sessions and everyone's, with or without archived ones.
 
